@@ -456,6 +456,7 @@ async def nix_output_monitor(pipe: Pipe, opts: Options) -> AsyncIterator[Process
 
 @dataclass
 class Build:
+    name: str
     attr: str
     drv_path: str
     outputs: dict[str, str]
@@ -464,7 +465,7 @@ class Build:
         self, stack: AsyncExitStack, build_output: IO[str], opts: Options
     ) -> int:
         proc = await stack.enter_async_context(
-            nix_build(self.drv_path, build_output, opts)
+            nix_build(self.drv_path, self.name, build_output, opts)
         )
         rc = 0
         for _ in range(opts.retries + 1):
@@ -562,12 +563,13 @@ class QueueWithContext(Queue[T]):
 
 @asynccontextmanager
 async def nix_build(
-    installable: str, stderr: IO[Any] | None, opts: Options
+    installable: str, attr: str, stderr: IO[Any] | None, opts: Options
 ) -> AsyncIterator[Process]:
     args = [
         "nix-build",
         installable,
         "--keep-going",
+        "--out-link", "result-" + attr
     ] + opts.options
     args = maybe_remote(args, opts)
     logger.debug("run %s", shlex.join(args))
@@ -580,6 +582,7 @@ async def nix_build(
 
 @dataclass
 class Job:
+    name: str
     attr: str
     drv_path: str
     outputs: dict[str, str]
@@ -604,6 +607,7 @@ async def run_evaluation(
             die(f"Failed to parse line of nix-eval-jobs output: {line.decode()}")
         error = job.get("error")
         attr = job.get("attr", "unknown-flake-attribute")
+        name = job.get("name", "unknown-flake-attribute-name")
         if error:
             failures.append(EvalFailure(attr, error))
             continue
@@ -617,7 +621,7 @@ async def run_evaluation(
         if not drv_path:
             die(f"nix-eval-jobs did not return a drvPath: {line.decode()}")
         outputs = job.get("outputs", {})
-        build_queue.put_nowait(Job(attr, drv_path, outputs))
+        build_queue.put_nowait(Job(name, attr, drv_path, outputs))
     return await eval_proc.wait()
 
 
@@ -642,7 +646,7 @@ async def run_builds(
             if job.drv_path in drv_paths:
                 continue
             drv_paths.add(job.drv_path)
-            build = Build(job.attr, job.drv_path, job.outputs)
+            build = Build(job.name, job.attr, job.drv_path, job.outputs)
             rc = await build.build(stack, build_output, opts)
             if rc == 0:
                 upload_queue.put_nowait(build)
