@@ -428,7 +428,7 @@ async def nix_eval_jobs(stack: AsyncExitStack, opts: Options) -> AsyncIterator[P
     if opts.skip_cached:
         args.append("--check-cache-status")
     if opts.remote:
-        args = nix_shell(["nixpkgs#nix-eval-jobs"]) + args
+        args = nix_shell(["github:nix-community/nix-eval-jobs#nix-eval-jobs"]) + args
     args = maybe_remote(args, opts)
     logger.info("run %s", shlex.join(args))
     proc = await asyncio.create_subprocess_exec(*args, stdout=subprocess.PIPE)
