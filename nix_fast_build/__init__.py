@@ -365,7 +365,6 @@ def upload_sources(opts: Options) -> str:
             opts.flake_url,
         ]
     )
-    print("run " + shlex.join(cmd))
     logger.info("run %s", shlex.join(cmd))
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, check=False)
     if proc.returncode != 0:
@@ -744,7 +743,6 @@ async def run_builds(
                 logger.debug("finish build task")
                 return 0
             job = next_job
-            print(f"  building {job.attr}")
             if job.drv_path in drv_paths:
                 continue
             drv_paths.add(job.drv_path)
@@ -863,7 +861,7 @@ async def run(stack: AsyncExitStack, opts: Options) -> int:
             )
         )
         evaluation = tasks[0]
-        build_output = sys.stdout.buffer
+        build_output = sys.stderr.buffer
         if pipe:
             build_output = pipe.write_file
         logger.debug("Starting %d build tasks", opts.max_jobs)
